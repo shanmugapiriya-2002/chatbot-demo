@@ -1,0 +1,49 @@
+.gitignore
+  s_a4a66508664d7d::t_59105c6d9829d9 1-41
+AGENTS.md
+  s_a4a66508664d7d::t_9e68e5bb3a5bfa 1-9
+README.md
+  s_a4a66508664d7d::t_cd40e031b940d7 1-36
+app/globals.css
+  s_a4a66508664d7d::t_65da8df8beff80 1-26
+app/layout.tsx
+  s_a4a66508664d7d::t_6471f83a231b80 1-29
+app/page.tsx
+  s_a4a66508664d7d::t_0dddbab6f3ed59 1-69
+eslint.config.mjs
+  s_a4a66508664d7d::t_1994c125581a9a 1-18
+next.config.ts
+  s_a4a66508664d7d::t_7cbe952976e306 1-17
+package-lock.json
+  s_a4a66508664d7d::t_05d2d850f879d2 1-6299
+package.json
+  s_a4a66508664d7d::t_0061a086f4b578 1-26
+public/file.svg
+  s_a4a66508664d7d::t_6a86b57daa3f60 1
+public/globe.svg
+  s_a4a66508664d7d::t_21d2e740a47e0d 1
+public/next.svg
+  s_a4a66508664d7d::t_420846c0366e61 1
+public/vercel.svg
+  s_a4a66508664d7d::t_5209a72aae437d 1
+public/window.svg
+  s_a4a66508664d7d::t_580517db3c7da5 1
+tsconfig.json
+  s_a4a66508664d7d::t_5f10f7be51d388 1-34
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "60b40e6e40dc0c20c05d6d76aaf9f2873e93425b",
+  "prompts": {},
+  "sessions": {
+    "s_a4a66508664d7d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c47bc91f-bb47-4766-a0fa-74cd01eb412d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "shanmugapiriya-2002 <shanmugapiriya@krylox.ai>"
+    }
+  }
+}
