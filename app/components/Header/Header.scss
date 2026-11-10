@@ -1,0 +1,38 @@
+.header {
+  // Overlays the hero banner
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 10;
+  width: 100%;
+  padding: 20px 60px;
+  background-color: transparent;
+
+  // Same condition as the stacked hero layout, so the left edges line up
+  @media (max-width: 991px), (max-aspect-ratio: 3/2) {
+    padding: 20px 24px;
+  }
+
+  .header-container {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .logo {
+    font-size: 28px;
+    font-weight: 700;
+    color: #ffffff;
+  }
+
+  .header-button {
+    padding: 12px 24px;
+    border: none;
+    border-radius: 30px;
+    background-color: #19e6e0;
+    color: #1a1a6e;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+}
