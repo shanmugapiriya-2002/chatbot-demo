@@ -1,0 +1,12 @@
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7b6c499635ff26e2cfd468ca362020a0668531ba",
+  "prompts": {},
+  "humans": {
+    "h_c33f5cf6d23190": {
+      "author": "shanmugapiriya-2002 <shanmugapiriya@krylox.ai>"
+    }
+  }
+}
