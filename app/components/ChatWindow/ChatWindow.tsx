@@ -1,3 +1,4 @@
+
 "use client";
 
 import "./ChatWindow.scss";
@@ -6,8 +7,8 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Bot, UserRound, Send } from "lucide-react";
 import LogoutButton from "../LogoutButton/LogoutButton";
+import GoogleLogin from "../GoogleLogin/GoogleLogin";
 
-// Message type
 type Message = {
   role: "user" | "assistant";
   content: string;
@@ -17,7 +18,9 @@ export default function ChatWindow() {
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
+  const [showLoginPopup, setShowLoginPopup] = useState(false);
 
+  console.log(showLoginPopup,"showLoginPopup>>>>>")
   const handleSend = async () => {
     if (!message.trim() || loading) return;
 
@@ -45,67 +48,53 @@ export default function ChatWindow() {
         }),
       });
 
-      // Errors (before streaming) still come back as JSON
-      if (!response.ok || !response.body) {
-        const data = await response.json().catch(() => ({}));
-        throw new Error(data.error || "Something went wrong");
-      }
+      // Handle API errors
+      if (!response.ok) {
+  const data = await response.json().catch(() => ({}));
 
-      // Add an empty assistant message that we fill as text arrives
+  console.log("API STATUS:", response.status);
+  console.log("API RESPONSE:", data);
+
+  if (data.error === "LOGIN_REQUIRED") {
+    console.log("LOGIN REQUIRED - SHOW POPUP");
+
+    setShowLoginPopup(true);
+    return;
+  }
+
+  throw new Error(data.error || "Something went wrong");
+}
+
+      const data = await response.json();
+
       setMessages((prevMessages) => [
         ...prevMessages,
-        { role: "assistant", content: "" },
+        {
+          role: "assistant",
+          content: data.reply,
+        },
       ]);
 
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        const chunk = decoder.decode(value, { stream: true });
-        if (!chunk) continue;
-
-        setMessages((prevMessages) => {
-          const updated = [...prevMessages];
-          const last = updated[updated.length - 1];
-          updated[updated.length - 1] = {
-            ...last,
-            content: last.content + chunk,
-          };
-          return updated;
-        });
-      }
     } catch (error) {
       console.error("OpenRouter API Error:", error);
 
-      const errorText = "Sorry, something went wrong. Please try again.";
+      const errorText =
+        "Sorry, something went wrong. Please try again.";
 
-      setMessages((prevMessages) => {
-        const last = prevMessages[prevMessages.length - 1];
-
-        // Stream broke midway: keep the partial answer, add a note
-        if (last?.role === "assistant") {
-          const updated = [...prevMessages];
-          updated[updated.length - 1] = {
-            ...last,
-            content: last.content
-              ? `${last.content}\n\n⚠️ ${errorText}`
-              : errorText,
-          };
-          return updated;
-        }
-
-        return [...prevMessages, { role: "assistant", content: errorText }];
-      });
+      setMessages((prevMessages) => [
+        ...prevMessages,
+        {
+          role: "assistant",
+          content: errorText,
+        },
+      ]);
     } finally {
       setLoading(false);
     }
   };
 
-  // While loading, show typing dots until the assistant bubble has text
   const lastMessage = messages[messages.length - 1];
+
   const showTyping =
     loading &&
     !(lastMessage?.role === "assistant" && lastMessage.content);
@@ -131,8 +120,6 @@ export default function ChatWindow() {
         <div className="chat-messages">
 
           {messages.map((msg, index) => (
-            // Skip the empty assistant bubble while waiting for the first words
-            msg.role === "assistant" && !msg.content ? null : (
             <div
               key={index}
               className={`message ${
@@ -140,7 +127,7 @@ export default function ChatWindow() {
               }`}
             >
 
-              {/* AI Icon - Left Side */}
+              {/* AI Icon */}
               {msg.role === "assistant" && (
                 <div className="message-icon">
                   <Bot size={20} />
@@ -166,7 +153,7 @@ export default function ChatWindow() {
                 )}
               </div>
 
-              {/* User Icon - Right Side */}
+              {/* User Icon */}
               {msg.role === "user" && (
                 <div className="message-icon">
                   <UserRound size={20} />
@@ -174,10 +161,9 @@ export default function ChatWindow() {
               )}
 
             </div>
-            )
           ))}
 
-          {/* AI Loading Animation - only until the first words arrive */}
+          {/* AI Loading Animation */}
           {showTyping && (
             <div className="message bot">
               <div className="message-icon">
@@ -214,6 +200,35 @@ export default function ChatWindow() {
             <Send size={20} />
           </button>
         </div>
+
+        {/* Login Popup */}
+        {showLoginPopup && (
+          <div
+            className="login-popup-overlay"
+            onClick={() => setShowLoginPopup(false)}
+          >
+            <div
+              className="login-popup"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                className="popup-close"
+                onClick={() => setShowLoginPopup(false)}
+              >
+                ×
+              </button>
+
+              <h2>Please Login to Continue</h2>
+
+              <p>
+                You have used your 3 free questions.
+                Please login to continue chatting.
+              </p>
+
+              <GoogleLogin />
+            </div>
+          </div>
+        )}
 
       </div>
     </div>

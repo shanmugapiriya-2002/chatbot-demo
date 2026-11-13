@@ -1,6 +1,7 @@
 
 import NextAuth from "next-auth";
 import Google from "next-auth/providers/google";
+import { supabase } from "@/lib/supabase";
 
 export const {
   handlers,
@@ -19,4 +20,34 @@ export const {
       },
     }),
   ],
+
+  events: {
+    async signIn({ user }) {
+      try {
+        if (!user.email) {
+          console.error("User email is missing");
+          return;
+        }
+
+       const result = await supabase
+  .from("users")
+  .upsert({
+    email: user.email,
+    name: user.name,
+  });
+
+const error = result.error;
+
+        if (error) {
+          console.error("User save error:", error);
+          return;
+        }
+
+        console.log("User saved successfully:", user.email);
+
+      } catch (error) {
+        console.error("Supabase error:", error);
+      }
+    },
+  },
 });

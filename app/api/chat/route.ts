@@ -1,7 +1,99 @@
+
+import { auth } from "@/auth";
+import { cookies } from "next/headers";
+import { createHmac, timingSafeEqual } from "node:crypto";
+import { supabase } from "@/lib/supabase";
+
+const COOKIE_NAME = "guest_questions";
+const GUEST_LIMIT = 3;
+
+function createSignature(count: number, secret: string) {
+  return createHmac("sha256", secret)
+    .update(String(count))
+    .digest("hex");
+}
+
+function getGuestCount(
+  value: string | undefined,
+  secret: string
+) {
+  if (!value) return 0;
+
+  const [countText, signature] = value.split(".");
+
+  console.log(countText,signature,"countText,signature>>>>>")
+  const count = Number(countText);
+
+  if (
+    !Number.isInteger(count) ||
+    count < 0 ||
+    count > GUEST_LIMIT ||
+    !signature
+  ) {
+    return 0;
+  }
+
+  const expectedSignature = createSignature(count, secret);
+
+  console.log(signature,expectedSignature,"signature,expectedSignature>>>>>")
+
+  const actualBuffer = Buffer.from(signature, "hex");
+  const expectedBuffer = Buffer.from(expectedSignature, "hex");
+
+  console.log(actualBuffer,expectedBuffer,"actualBuffer,expectedBuffer>>>>>")
+
+  if (
+    actualBuffer.length !== expectedBuffer.length ||
+    !timingSafeEqual(actualBuffer, expectedBuffer)
+  ) {
+    return 0;
+  }
+  console.log(count,"count>>>>>")
+
+  return count;
+}
+
 export async function POST(request: Request) {
   try {
     const { message } = await request.json();
 
+    const session = await auth();
+    console.log("SESSION DATA:", session);
+console.log("IS USER LOGGED IN:", !!session);
+    const cookieStore = await cookies();
+
+// cookieStore.delete("guest_questions");
+// console.log(cookieStore,"cookieStore>>>>>")
+
+    let currentCount = 0;
+    const secret = process.env.AUTH_SECRET;
+
+    // Guest question limit check
+    if (!session) {
+      if (!secret) {
+        return Response.json(
+          { error: "Server configuration error" },
+          { status: 500 }
+        );
+      }
+
+      currentCount = getGuestCount(
+        cookieStore.get(COOKIE_NAME)?.value,
+        secret
+      );
+
+      if (currentCount >= GUEST_LIMIT) {
+        return Response.json(
+          {
+            error: "LOGIN_REQUIRED",
+            message: "Please login to continue",
+          },
+          { status: 401 }
+        );
+      }
+    }
+
+    // OpenRouter API request
     const response = await fetch(
       "https://openrouter.ai/api/v1/chat/completions",
       {
@@ -18,14 +110,13 @@ export async function POST(request: Request) {
               content: message,
             },
           ],
-          stream: true,
+          stream: false,
         }),
-        // If the user closes the tab, stop the OpenRouter request too
         signal: request.signal,
       }
     );
 
-    // Errors before streaming starts come back as normal JSON
+    // Handle API errors
     if (!response.ok) {
       const error = await response.json().catch(() => ({}));
 
@@ -37,91 +128,58 @@ export async function POST(request: Request) {
       );
     }
 
-    if (!response.body) {
+    const data = await response.json();
+
+    console.log(data,"data>>>>>")
+
+    const aiMessage = data.choices?.[0]?.message?.content;
+    console.log(aiMessage,"aiMessage>>>>>")
+
+    if (typeof aiMessage !== "string") {
       return Response.json(
-        { error: "Stream not available" },
+        { error: "Invalid AI response" },
         { status: 500 }
       );
     }
 
-    // OpenRouter sends Server-Sent Events (SSE):
-    //   data: {"choices":[{"delta":{"content":"Hel"}}]}
-    //   data: {"choices":[{"delta":{"content":"lo"}}]}
-    //   : OPENROUTER PROCESSING      <- comment, ignore
-    //   data: [DONE]
-    // We parse those lines here and send ONLY the text to the browser.
-    const upstream = response.body.getReader();
-    const decoder = new TextDecoder();
-    const encoder = new TextEncoder();
+    // Save logged-in user's question
+if (session?.user?.email) {
+  const result = await supabase
+    .from("chat_questions")
+    .insert({
+      user_email: session.user.email,
+      question: message,
+    });
 
-    const stream = new ReadableStream<Uint8Array>({
-      async start(controller) {
-        let buffer = "";
+const questionSaveError = result.error;
+  if (questionSaveError) {
+    console.error("Question save error:", questionSaveError);
+  }
+}
 
-        try {
-          while (true) {
-            const { done, value } = await upstream.read();
-            if (done) break;
+    // Update guest question count
+    if (!session) {
+      const nextCount = currentCount + 1;
+      const signature = createSignature(nextCount, secret!);
 
-            buffer += decoder.decode(value, { stream: true });
-
-            // A network chunk can end in the middle of a line,
-            // so only process complete lines and keep the rest.
-            const lines = buffer.split("\n");
-            buffer = lines.pop() ?? "";
-
-            for (const rawLine of lines) {
-              const line = rawLine.trim();
-
-              // Skip empty lines and SSE comments
-              if (!line.startsWith("data:")) continue;
-
-              const data = line.slice(5).trim();
-              if (data === "[DONE]") {
-                controller.close();
-                return;
-              }
-
-              try {
-                const parsed = JSON.parse(data);
-
-                // Error that happens in the middle of the stream
-                if (parsed.error) {
-                  controller.enqueue(
-                    encoder.encode(
-                      `\n\n⚠️ ${parsed.error.message || "Stream error"}`
-                    )
-                  );
-                  controller.close();
-                  return;
-                }
-
-                const content = parsed.choices?.[0]?.delta?.content;
-                if (content) {
-                  controller.enqueue(encoder.encode(content));
-                }
-              } catch {
-                // Ignore malformed JSON lines
-              }
-            }
-          }
-
-          controller.close();
-        } catch (error) {
-          controller.error(error);
+      cookieStore.set(
+        COOKIE_NAME,
+        `${nextCount}.${signature}`,
+        {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === "production",
+          sameSite: "lax",
+          path: "/",
+          maxAge: 60 * 60 * 24,
         }
-      },
-      cancel() {
-        upstream.cancel();
-      },
+      );
+    }
+
+    // Send AI answer to frontend
+    return Response.json({
+      reply: aiMessage,
     });
 
-    return new Response(stream, {
-      headers: {
-        "Content-Type": "text/plain; charset=utf-8",
-        "Cache-Control": "no-cache, no-transform",
-      },
-    });
   } catch (error) {
     console.error("Chat API Error:", error);
 
